@@ -1,0 +1,1 @@
+This folder will store any images your program will use
