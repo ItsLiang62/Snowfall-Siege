@@ -4,7 +4,7 @@ import random
 import math
 
 pygame.init()
-
+pygame.mixer.init()
 # =========================
 # Helper Functions
 # =========================
@@ -86,6 +86,12 @@ player_stand = load_scaled_image("player_stand.png", 0.05)
 monster_img = load_scaled_image("monster_run.png", 0.11)
 ammo_img = load_scaled_image("ammo.png", 0.14)
 
+pickup_sound = pygame.mixer.Sound("../Assets/pickup.mp3")
+win_sound = pygame.mixer.Sound("../Assets/win.mp3")
+
+pygame.mixer.music.load("../Assets/bgm.mp3")
+pygame.mixer.music.play(-1)
+pygame.mixer.music.set_volume(0.3)
 # Exit block (temporary)
 exit_img = pygame.Surface((35, 35), pygame.SRCALPHA)
 exit_img.fill((0, 220, 0))
@@ -110,14 +116,10 @@ ammo_count = 0
 game_won = False
 running = True
 
-# 玩家从右下角开始
 player_x, player_y = 1000, 700
 
-# 左上角出口
 exit_x, exit_y = 20 , -30
 
-# 怪物位置：照你 storyboard
-# patrol_timer 用来定时换巡逻方向
 monsters = [
     {"x": 350.0, "y": 90.0, "dx": 2.0, "dy": 0.0, "speed": 2.0, "patrol_timer": 0},
     {"x": 980.0, "y": 35.0, "dx": -2.0, "dy": 0.0, "speed": 2.0, "patrol_timer": 0},
@@ -125,7 +127,6 @@ monsters = [
     {"x": 1000.0, "y": 520.0, "dx": 0.0, "dy": -2.0, "speed": 2.0, "patrol_timer": 0}
 ]
 
-# Ammo 位置：照你 storyboard
 ammos = [
     {"x": 205, "y": 160, "collected": False},
     {"x": 820, "y": 80, "collected": False},
@@ -133,8 +134,8 @@ ammos = [
 ]
 
 # AI settings
-CHASE_RANGE = 170      # 怪物距离玩家多近时会追
-PATROL_CHANGE_TIME = 90  # 巡逻多久随机换方向（帧数）
+CHASE_RANGE = 170
+PATROL_CHANGE_TIME = 90
 
 # =========================
 # Main Loop
@@ -170,22 +171,21 @@ while running:
         ammo_mask = pygame.mask.from_surface(ammo_img)
         exit_mask = pygame.mask.from_surface(exit_img)
 
-        # 撞墙检测
         if not is_collision((int(new_x), int(new_y)), player_mask, walls_mask):
             player_x, player_y = new_x, new_y
 
-        # 捡 ammo
         for ammo in ammos:
             if not ammo["collected"]:
                 offset = (int(ammo["x"] - player_x), int(ammo["y"] - player_y))
                 if player_mask.overlap(ammo_mask, offset):
                     ammo["collected"] = True
                     ammo_count += 5
+                    pickup_sound.play()
 
-        # 到左上角出口才赢
         exit_offset = (int(exit_x - player_x), int(exit_y - player_y))
         if player_mask.overlap(exit_mask, exit_offset):
             game_won = True
+            win_sound.play()
 
         # =========================
         # Monster AI
@@ -206,12 +206,10 @@ while running:
                 test_x = monster["x"] + move_x
                 test_y = monster["y"] + move_y
 
-                # 尝试完整移动
                 if not is_collision((int(test_x), int(test_y)), monster_mask, walls_mask):
                     monster["x"] = test_x
                     monster["y"] = test_y
                 else:
-                    # X 和 Y 分开尝试，减少卡墙
                     test_x_only = monster["x"] + move_x
                     if not is_collision((int(test_x_only), int(monster["y"])), monster_mask, walls_mask):
                         monster["x"] = test_x_only
@@ -224,7 +222,6 @@ while running:
             else:
                 monster["patrol_timer"] += 1
 
-                # 定时随机换方向
                 if monster["patrol_timer"] >= PATROL_CHANGE_TIME:
                     monster["dx"], monster["dy"] = new_monster_direction(monster["speed"])
                     monster["patrol_timer"] = 0
@@ -236,7 +233,6 @@ while running:
                     monster["x"] = test_x
                     monster["y"] = test_y
                 else:
-                    # 撞墙就立刻换方向
                     monster["dx"], monster["dy"] = new_monster_direction(monster["speed"])
                     monster["patrol_timer"] = 0
 
