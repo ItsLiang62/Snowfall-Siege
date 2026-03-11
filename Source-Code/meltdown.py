@@ -83,7 +83,7 @@ maze = pygame.transform.smoothscale(maze_raw, (maze_width, maze_height))
 # =========================
 player_run = load_scaled_image("player_run.png", 0.09)
 player_stand = load_scaled_image("player_stand.png", 0.05)
-monster_img = load_scaled_image("monster_run.png", 0.11)
+monster_img = load_scaled_image("monster_run.png", 0.10)
 ammo_img = load_scaled_image("ammo.png", 0.14)
 
 pickup_sound = pygame.mixer.Sound("../Assets/pickup.mp3")
@@ -121,7 +121,10 @@ player_x, player_y = 1000, 700
 exit_x, exit_y = 20 , -30
 
 monsters = [
+    {"x": 130.0, "y": 250.0, "dx": 2.0, "dy": 0.0, "speed": 2.0, "patrol_timer": 0},
+    {"x": 420.0, "y": 350.0, "dx": 2.0, "dy": 0.0, "speed": 2.0, "patrol_timer": 0},
     {"x": 350.0, "y": 90.0, "dx": 2.0, "dy": 0.0, "speed": 2.0, "patrol_timer": 0},
+    {"x": 350.0, "y": 700.0, "dx": 2.0, "dy": 0.0, "speed": 2.0, "patrol_timer": 0},
     {"x": 980.0, "y": 35.0, "dx": -2.0, "dy": 0.0, "speed": 2.0, "patrol_timer": 0},
     {"x": 180.0, "y": 500.0, "dx": 0.0, "dy": -2.0, "speed": 2.0, "patrol_timer": 0},
     {"x": 1000.0, "y": 520.0, "dx": 0.0, "dy": -2.0, "speed": 2.0, "patrol_timer": 0}
@@ -134,7 +137,7 @@ ammos = [
 ]
 
 # AI settings
-CHASE_RANGE = 170
+CHASE_RANGE = 130
 PATROL_CHANGE_TIME = 90
 
 # =========================
