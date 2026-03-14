@@ -2,6 +2,8 @@ import pygame
 import sys
 import random
 import math
+import os
+import subprocess
 
 pygame.init()
 pygame.mixer.init()
@@ -68,7 +70,7 @@ def move_toward_target(monster_x, monster_y, target_x, target_y, speed):
 # =========================
 maze_raw = pygame.image.load("../Assets/maze_level2.png")
 
-scale_factor = 0.7
+scale_factor = 0.60  # smaller window
 maze_width = int(maze_raw.get_width() * scale_factor)
 maze_height = int(maze_raw.get_height() * scale_factor)
 
@@ -96,6 +98,24 @@ pygame.mixer.music.set_volume(0.3)
 exit_img = pygame.Surface((35, 35), pygame.SRCALPHA)
 exit_img.fill((0, 220, 0))
 
+# Snow overlay setup
+WIDTH, HEIGHT = screen.get_width(), screen.get_height()
+snow_colors = [
+    (240, 248, 255),  # baby blue-ish
+    (0, 0, 0),        # black
+    (255, 255, 255),  # white
+]
+flakes = [
+    {
+        "x": random.randrange(0, WIDTH),
+        "y": random.randrange(-HEIGHT, 0),
+        "speed": random.uniform(1.0, 3.5),
+        "radius": random.randint(1, 3),
+        "color": random.choice(snow_colors),
+    }
+    for _ in range(120)
+]
+
 # =========================
 # Fonts / Clock
 # =========================
@@ -115,6 +135,7 @@ player_speed = 4
 ammo_count = 0
 game_won = False
 running = True
+game_paused = False
 
 player_x, player_y = 1000, 700
 
@@ -137,6 +158,12 @@ ammos = [
 CHASE_RANGE = 170
 PATROL_CHANGE_TIME = 90
 
+def go_to_menu():
+    pygame.mixer.music.fadeout(300)
+    subprocess.Popen([sys.executable, "menu.py"], cwd=os.path.dirname(__file__))
+    pygame.quit()
+    sys.exit()
+
 # =========================
 # Main Loop
 # =========================
@@ -144,6 +171,8 @@ while running:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
+        elif event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+            go_to_menu()
 
     current_player_image = player_stand
 
@@ -241,6 +270,16 @@ while running:
     # =========================
     screen.fill((255, 255, 255))
     screen.blit(maze, (0, 0))
+
+    # Snow overlay
+    for flake in flakes:
+        flake["y"] += flake["speed"]
+        flake["x"] += random.uniform(-0.5, 0.5)
+        if flake["y"] > HEIGHT:
+            flake["y"] = -flake["radius"]
+            flake["x"] = random.randrange(0, WIDTH)
+            flake["color"] = random.choice(snow_colors)
+        pygame.draw.circle(screen, flake["color"], (int(flake["x"]), int(flake["y"])), flake["radius"])
 
     # Exit
     screen.blit(exit_img, (exit_x, exit_y))
