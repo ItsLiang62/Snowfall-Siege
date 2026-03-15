@@ -81,26 +81,27 @@ def draw_health_bar(surface, x, y, width, height, current_hp, max_hp, border_col
 
 def create_monsters():
     return [
-        {"x": 350.0, "y": 90.0, "dx": 2.0, "dy": 0.0, "speed": 2.0, "patrol_timer": 0, "hp": 5, "alive": True},
-        {"x": 980.0, "y": 35.0, "dx": -2.0, "dy": 0.0, "speed": 2.0, "patrol_timer": 0, "hp": 5, "alive": True},
-        {"x": 180.0, "y": 500.0, "dx": 0.0, "dy": -2.0, "speed": 2.0, "patrol_timer": 0, "hp": 5, "alive": True},
-        {"x": 1000.0, "y": 520.0, "dx": 0.0, "dy": -2.0, "speed": 2.0, "patrol_timer": 0, "hp": 5, "alive": True}
+        {"x": 150.0, "y": 404.0, "dx": 2.0, "dy": 0.0, "speed": 2.0, "patrol_timer": 0, "hp": 5, "alive": True},
+        {"x": 337.0, "y": 64.0, "dx": -2.0, "dy": 0.0, "speed": 2.0, "patrol_timer": 0, "hp": 5, "alive": True},
+        {"x": 621.0, "y": 564.0, "dx": 0.0, "dy": -2.0, "speed": 2.0, "patrol_timer": 0, "hp": 5, "alive": True},
+        {"x": 849.0, "y": 72.0, "dx": 0.0, "dy": -2.0, "speed": 2.0, "patrol_timer": 0, "hp": 5, "alive": True}
     ]
 
 def create_ammos():
     return [
-        {"x": 205, "y": 160, "collected": False},
-        {"x": 820, "y": 80, "collected": False},
-        {"x": 0, "y": 550, "collected": False}
+        {"x": 176, "y": 137, "collected": False},
+        {"x": 704, "y": 69, "collected": False},
+        {"x": 0, "y": 471, "collected": False}
     ]
 
 def reset_game(player_stand_img):
     return {
-        "player_x": 1000.0,
-        "player_y": 700.0,
+        "player_x": 869.0,
+        "player_y": 592.0,
         "player_direction": "RIGHT",
         "current_player_image": player_stand_img,
         "player_hp": 3,
+        "blocks": 1,
         "ammo_count": 10,
         "game_won": False,
         "game_lost": False,
@@ -131,8 +132,8 @@ maze = pygame.transform.smoothscale(maze_raw, (maze_width, maze_height))
 # =========================
 # Load Assets
 # =========================
-player_run = load_scaled_image("player_run.png", 0.09)
-player_stand = load_scaled_image("player_stand.png", 0.05)
+player_run = load_scaled_image("player_run.png", 0.08)
+player_stand = load_scaled_image("player_stand.png", 0.045)
 monster_img = load_scaled_image("monster_run.png", 0.11)
 ammo_img = load_scaled_image("ammo.png", 0.14)
 
@@ -202,24 +203,10 @@ patrol_change_time = 90
 game = reset_game(player_stand)
 
 running = True
-game_paused = False
+game_state = "playing"
+win_played = False
 
-player_x, player_y = 1000, 700
-
-exit_x, exit_y = 20 , -30
-
-monsters = [
-    {"x": 350.0, "y": 90.0, "dx": 2.0, "dy": 0.0, "speed": 2.0, "patrol_timer": 0},
-    {"x": 980.0, "y": 35.0, "dx": -2.0, "dy": 0.0, "speed": 2.0, "patrol_timer": 0},
-    {"x": 180.0, "y": 500.0, "dx": 0.0, "dy": -2.0, "speed": 2.0, "patrol_timer": 0},
-    {"x": 1000.0, "y": 520.0, "dx": 0.0, "dy": -2.0, "speed": 2.0, "patrol_timer": 0}
-]
-
-ammos = [
-    {"x": 205, "y": 160, "collected": False},
-    {"x": 820, "y": 80, "collected": False},
-    {"x": 0, "y": 550, "collected": False}
-]
+exit_x, exit_y = 17 , -26
 
 # AI settings
 CHASE_RANGE = 170
@@ -241,13 +228,38 @@ while running:
         if event.type == pygame.QUIT:
             running = False
         elif event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
-            go_to_menu()
+            if game_state == "playing":
+                game_state = "pause"
+            elif game_state == "pause":
+                game_state = "playing"
+        elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1 and game_state != "playing":
+            mx, my = event.pos
+            buttons = []
+            if game_state == "pause":
+                buttons = [("Continue", "continue"), ("Restart", "restart"), ("Exit to Menu", "menu")]
+            elif game_state == "win":
+                buttons = [("Restart", "restart"), ("Exit to Menu", "menu")]
+            elif game_state == "lose":
+                buttons = [("Restart", "restart"), ("Exit to Menu", "menu")]
+            start_y = maze_height // 2 + 30
+            rects = []
+            for i, (label, action) in enumerate(buttons):
+                rect = pygame.Rect(0, 0, 220, 50)
+                rect.center = (maze_width // 2, start_y + i * 70)
+                rects.append((rect, action))
+            for rect, action in rects:
+                if rect.collidepoint(mx, my):
+                    if action == "continue":
+                        game_state = "playing"
+                    elif action == "restart":
+                        game = reset_game(player_stand)
+                        game_state = "playing"
+                        win_played = False
+                    elif action == "menu":
+                        go_to_menu()
+                    break
 
-        if event.type == pygame.KEYDOWN:
-            if game["game_lost"] and event.key == pygame.K_r:
-                game = reset_game(player_stand)
-                continue
-
+        if event.type == pygame.KEYDOWN and game_state == "playing":
             if (not game["game_won"]) and (not game["game_lost"]) and event.key == pygame.K_SPACE:
                 current_time = pygame.time.get_ticks()
                 if game["ammo_count"] > 0 and current_time - game["last_shot_time"] >= shoot_cooldown:
@@ -266,33 +278,50 @@ while running:
                     game["ammo_count"] -= 1
                     game["last_shot_time"] = current_time
 
-    if not game["game_won"] and not game["game_lost"]:
+    if game_state == "playing" and not game["game_won"] and not game["game_lost"]:
         keys = pygame.key.get_pressed()
         new_x, new_y = game["player_x"], game["player_y"]
         game["current_player_image"] = player_stand
 
-        if keys[pygame.K_UP]:
+        dx, dy = 0, 0
+        if keys[pygame.K_UP] or keys[pygame.K_w]:
             game["current_player_image"] = player_run
             game["player_direction"] = "UP"
-            new_y -= player_speed
-        elif keys[pygame.K_DOWN]:
+            dy = -player_speed
+        elif keys[pygame.K_DOWN] or keys[pygame.K_s]:
             game["current_player_image"] = pygame.transform.flip(player_run, True, False)
             game["player_direction"] = "DOWN"
-            new_y += player_speed
-        elif keys[pygame.K_LEFT]:
+            dy = player_speed
+        elif keys[pygame.K_LEFT] or keys[pygame.K_a]:
             game["current_player_image"] = pygame.transform.flip(player_run, True, False)
             game["player_direction"] = "LEFT"
-            new_x -= player_speed
-        elif keys[pygame.K_RIGHT]:
+            dx = -player_speed
+        elif keys[pygame.K_RIGHT] or keys[pygame.K_d]:
             game["current_player_image"] = player_run
             game["player_direction"] = "RIGHT"
-            new_x += player_speed
+            dx = player_speed
 
         player_mask = pygame.mask.from_surface(game["current_player_image"])
         ammo_mask = pygame.mask.from_surface(ammo_img)
 
-        if not is_collision((int(new_x), int(new_y)), player_mask, walls_mask):
-            game["player_x"], game["player_y"] = new_x, new_y
+        attempts = []
+        if dx == 0 and dy == 0:
+            attempts = [(0, 0)]
+        else:
+            attempts.append((dx, dy))
+            if dy != 0:
+                attempts.append((-player_speed, 0))
+                attempts.append((player_speed, 0))
+            if dx != 0:
+                attempts.append((0, -player_speed))
+                attempts.append((0, player_speed))
+
+        for attempt_dx, attempt_dy in attempts:
+            cand_x = game["player_x"] + attempt_dx
+            cand_y = game["player_y"] + attempt_dy
+            if not is_collision((int(cand_x), int(cand_y)), player_mask, walls_mask):
+                game["player_x"], game["player_y"] = cand_x, cand_y
+                break
 
         for ammo in game["ammos"]:
             if not ammo["collected"]:
@@ -302,12 +331,13 @@ while running:
                     game["ammo_count"] += 7
                     pickup_sound.play()
 
-        all_monsters_dead = all(not monster["alive"] for monster in game["monsters"])
         exit_offset = (int(exit_x - game["player_x"]), int(exit_y - game["player_y"]))
-
+        all_monsters_dead = all(not monster["alive"] for monster in game["monsters"])
         if all_monsters_dead and player_mask.overlap(exit_mask, exit_offset):
             game["game_won"] = True
-            win_sound.play()
+            if not win_played:
+                win_sound.play()
+                win_played = True
 
         for monster in game["monsters"]:
             if not monster["alive"]:
@@ -362,7 +392,10 @@ while running:
             offset = (int(monster["x"] - game["player_x"]), int(monster["y"] - game["player_y"]))
             if player_mask.overlap(monster_mask, offset):
                 if current_time - game["last_player_hit_time"] >= damage_cooldown:
-                    game["player_hp"] -= 1
+                    if game["blocks"] > 0:
+                        game["blocks"] -= 1
+                    else:
+                        game["player_hp"] -= 1
                     game["last_player_hit_time"] = current_time
 
                     if game["player_hp"] <= 0:
@@ -371,41 +404,44 @@ while running:
 
         bullets_to_remove = []
 
-        for bullet in game["bullets"]:
-            bullet["x"] += bullet["dx"]
-            bullet["y"] += bullet["dy"]
+        if game_state == "playing":
+            for bullet in game["bullets"]:
+                bullet["x"] += bullet["dx"]
+                bullet["y"] += bullet["dy"]
 
-            if bullet["x"] < 0 or bullet["x"] > maze_width or bullet["y"] < 0 or bullet["y"] > maze_height:
-                bullets_to_remove.append(bullet)
-                continue
-
-            if is_collision((int(bullet["x"]), int(bullet["y"])), bullet_mask, walls_mask):
-                bullets_to_remove.append(bullet)
-                continue
-
-            for monster in game["monsters"]:
-                if not monster["alive"]:
+                if bullet["x"] < 0 or bullet["x"] > maze_width or bullet["y"] < 0 or bullet["y"] > maze_height:
+                    bullets_to_remove.append(bullet)
                     continue
 
-                bullet_to_monster_offset = (
-                    int(monster["x"] - bullet["x"]),
-                    int(monster["y"] - bullet["y"])
-                )
-
-                if bullet_mask.overlap(monster_mask, bullet_to_monster_offset):
-                    monster["hp"] -= 1
+                if is_collision((int(bullet["x"]), int(bullet["y"])), bullet_mask, walls_mask):
                     bullets_to_remove.append(bullet)
+                    continue
 
-                    if monster["hp"] <= 0:
-                        monster["hp"] = 0
-                        monster["alive"] = False
-                    break
+                for monster in game["monsters"]:
+                    if not monster["alive"]:
+                        continue
+
+                    bullet_to_monster_offset = (
+                        int(monster["x"] - bullet["x"]),
+                        int(monster["y"] - bullet["y"])
+                    )
+
+                    if bullet_mask.overlap(monster_mask, bullet_to_monster_offset):
+                        monster["hp"] -= 1
+                        bullets_to_remove.append(bullet)
+
+                        if monster["hp"] <= 0:
+                            monster["hp"] = 0
+                            monster["alive"] = False
+                            gained = 1
+                            game["blocks"] = min(1, game["blocks"] + gained)
+                        break
 
         for bullet in bullets_to_remove:
             if bullet in game["bullets"]:
                 game["bullets"].remove(bullet)
 
-    if game["show_mission"]:
+    if game_state == "playing" and game["show_mission"]:
         if pygame.time.get_ticks() - game["mission_start_time"] > mission_duration:
             game["show_mission"] = False
 
@@ -458,6 +494,12 @@ while running:
     draw_text(screen, f"Ammo: {game['ammo_count']}", font, (0, 0, 0), 20, maze_height - 80)
     draw_text(screen, f"Monsters Left: {sum(1 for monster in game['monsters'] if monster['alive'])}", font, (0, 0, 0), 20, maze_height - 50)
     draw_text(screen, "Player HP", small_font, (0, 0, 0), 20, maze_height - 115)
+    draw_text(screen, f"Blocks: {game['blocks']}/1", small_font, (0, 0, 0), 20, maze_height - 135)
+    # Player coordinates (upper right, black)
+    coord_text = f"X: {int(game['player_x'])}  Y: {int(game['player_y'])}"
+    coord_surf = small_font.render(coord_text, True, (0, 0, 0))
+    coord_rect = coord_surf.get_rect(topright=(maze_width - 10, 5))
+    screen.blit(coord_surf, coord_rect)
 
     draw_health_bar(
         screen,
@@ -480,19 +522,38 @@ while running:
         draw_text(screen, "Defeat all monsters before leaving the maze!", font, (255, 255, 255), 90, 95)
 
     if game["game_won"]:
-        overlay = pygame.Surface((maze_width, maze_height), pygame.SRCALPHA)
-        overlay.fill((0, 0, 0, 150))
-        screen.blit(overlay, (0, 0))
-        draw_text(screen, "VICTORY", big_font, (0, 255, 120), maze_width // 2 - 110, maze_height // 2 - 50)
-        draw_text(screen, "All monsters defeated. You escaped!", font, (255, 255, 255), maze_width // 2 - 170, maze_height // 2 + 10)
+        game_state = "win"
 
     if game["game_lost"]:
+        game_state = "lose"
+
+    if game_state != "playing":
         overlay = pygame.Surface((maze_width, maze_height), pygame.SRCALPHA)
         overlay.fill((0, 0, 0, 150))
         screen.blit(overlay, (0, 0))
-        draw_text(screen, "DEFEATED", big_font, (255, 60, 60), maze_width // 2 - 120, maze_height // 2 - 60)
-        draw_text(screen, "The monsters caught you.", font, (255, 255, 255), maze_width // 2 - 120, maze_height // 2)
-        draw_text(screen, "Press R to Try Again", font, (255, 255, 0), maze_width // 2 - 120, maze_height // 2 + 40)
+
+        title = "VICTORY" if game_state == "win" else ("DEFEATED" if game_state == "lose" else "PAUSED")
+        title_color = (0, 255, 120) if game_state == "win" else ((255, 60, 60) if game_state == "lose" else (255, 255, 255))
+        title_rect = big_font.render(title, True, title_color).get_rect(center=(maze_width // 2, maze_height // 2 - 60))
+        screen.blit(big_font.render(title, True, title_color), title_rect)
+
+        buttons = []
+        if game_state == "pause":
+            buttons = [("Continue", "continue"), ("Restart", "restart"), ("Exit to Menu", "menu")]
+        elif game_state == "win":
+            buttons = [("Restart", "restart"), ("Exit to Menu", "menu")]
+        elif game_state == "lose":
+            buttons = [("Restart", "restart"), ("Exit to Menu", "menu")]
+
+        start_y = maze_height // 2 + 30
+        for i, (label, _) in enumerate(buttons):
+            rect = pygame.Rect(0, 0, 220, 50)
+            rect.center = (maze_width // 2, start_y + i * 70)
+            pygame.draw.rect(screen, (0, 0, 0, 180), rect, border_radius=12)
+            pygame.draw.rect(screen, (255, 255, 255), rect, 2, border_radius=12)
+            text = font.render(label, True, (255, 255, 255))
+            text_rect = text.get_rect(center=rect.center)
+            screen.blit(text, text_rect)
 
     pygame.display.flip()
 

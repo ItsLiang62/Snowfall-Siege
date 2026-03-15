@@ -36,8 +36,8 @@ def new_monster_direction(monster_speed, monster):
 # Load maze original as background
 # Adjust scale factor of objects to fit maze path
 maze = load_scaled_image("maze.png", 0.7)
-player_run = load_scaled_image("player_run.png", 0.12)
-player_stand = load_scaled_image("player_stand.png", 0.06)
+player_run = load_scaled_image("player_run.png", 0.10)
+player_stand = load_scaled_image("player_stand.png", 0.05)
 monster_run = load_scaled_image("monster_run.png", 0.12)
 snowball_gun = load_scaled_image("snowball_gun_2d.png", 0.05)
 
@@ -57,6 +57,7 @@ exit_img = pygame.transform.smoothscale(
 )
 exit_mask = pygame.mask.from_surface(exit_img)
 fail_sound = pygame.mixer.Sound("../Assets/fail_sfx.mp3")
+win_sound = pygame.mixer.Sound("../Assets/win.mp3")
 
 walls_mask = pygame.mask.from_threshold(maze, (0,0,0,255), (1,1,1,255))
 walls_mask.invert()
@@ -68,13 +69,14 @@ pygame.mixer.music.set_volume(0.3)
 
 # State helpers
 def reset_game():
-    global player_x, player_y, monster_x, monster_y, gun_collected, monster_direction, game_state, fail_played
+    global player_x, player_y, monster_x, monster_y, gun_collected, monster_direction, game_state, fail_played, win_played
     player_x, player_y = 110, 465
     monster_x, monster_y = 110, 110
     gun_collected = False
     monster_direction = new_monster_direction(monster_speed, monster_run)
     game_state = "playing"
     fail_played = False
+    win_played = False
 
 def go_to_menu():
     pygame.mixer.music.fadeout(300)
@@ -99,6 +101,7 @@ monster_speed = 8
 monster_direction = new_monster_direction(monster_speed, monster_run)
 game_state = "playing"
 fail_played = False
+win_played = False
 
 clock = pygame.time.Clock()
 font = pygame.font.SysFont("arial", 28, bold=True)
@@ -222,6 +225,9 @@ while running:
         exit_offset = (exit_x - player_x, exit_y - player_y)
         if gun_collected and player_mask.overlap(exit_mask, exit_offset):
             game_state = "win"
+            if not win_played:
+                win_sound.play()
+                win_played = True
 
         monster_offset = (int(monster_x - player_x), int(monster_y - player_y))
         if player_mask.overlap(monster_mask, monster_offset):
