@@ -94,17 +94,18 @@ def create_ammos():
         {"x": 0, "y": 471, "collected": False}
     ]
 
-def reset_game(player_stand_img):
+def reset_game(player2_stand_img):
     return {
         "player_x": 869.0,
         "player_y": 592.0,
         "player_direction": "RIGHT",
-        "current_player_image": player_stand_img,
+        "current_player_image": player2_stand_img,
         "player_hp": 3,
         "blocks": 1,
         "ammo_count": 10,
         "game_won": False,
         "game_lost": False,
+        "fail_sound_played": False,
         "show_mission": True,
         "mission_start_time": pygame.time.get_ticks(),
         "last_player_hit_time": 0,
@@ -132,13 +133,18 @@ maze = pygame.transform.smoothscale(maze_raw, (maze_width, maze_height))
 # =========================
 # Load Assets
 # =========================
-player_run = load_scaled_image("player_run.png", 0.08)
-player_stand = load_scaled_image("player_stand.png", 0.045)
+player_run = load_scaled_image("player2_run.png", 0.08)
+player_stand = load_scaled_image("player2_stand.png", 0.08)
 monster_img = load_scaled_image("monster_run.png", 0.11)
 ammo_img = load_scaled_image("ammo.png", 0.14)
 
 pickup_sound = pygame.mixer.Sound(os.path.join(ASSET_DIR, "pickup.mp3"))
 win_sound = pygame.mixer.Sound(os.path.join(ASSET_DIR, "win.mp3"))
+fail_sound = pygame.mixer.Sound(os.path.join(ASSET_DIR, "fail_sfx.mp3"))
+gun_shot_sound = pygame.mixer.Sound(os.path.join(ASSET_DIR, "gun_shot.mp3"))
+monster_hurt_sound = pygame.mixer.Sound(os.path.join(ASSET_DIR, "monster_hurt.mp3"))
+player_hurt_sound = pygame.mixer.Sound(os.path.join(ASSET_DIR, "player_hurt.mp3"))
+shield_break_sound = pygame.mixer.Sound(os.path.join(ASSET_DIR, "shield_break.mp3"))
 
 pygame.mixer.music.load(os.path.join(ASSET_DIR, "bgm.mp3"))
 pygame.mixer.music.play(-1)
@@ -277,6 +283,7 @@ while running:
 
                     game["ammo_count"] -= 1
                     game["last_shot_time"] = current_time
+                    gun_shot_sound.play()
 
     if game_state == "playing" and not game["game_won"] and not game["game_lost"]:
         keys = pygame.key.get_pressed()
@@ -394,13 +401,18 @@ while running:
                 if current_time - game["last_player_hit_time"] >= damage_cooldown:
                     if game["blocks"] > 0:
                         game["blocks"] -= 1
+                        shield_break_sound.play()
                     else:
                         game["player_hp"] -= 1
+                        player_hurt_sound.play()
                     game["last_player_hit_time"] = current_time
 
                     if game["player_hp"] <= 0:
                         game["player_hp"] = 0
                         game["game_lost"] = True
+                        if not game["fail_sound_played"]:
+                            fail_sound.play()
+                            game["fail_sound_played"] = True
 
         bullets_to_remove = []
 
@@ -428,6 +440,7 @@ while running:
 
                     if bullet_mask.overlap(monster_mask, bullet_to_monster_offset):
                         monster["hp"] -= 1
+                        monster_hurt_sound.play()
                         bullets_to_remove.append(bullet)
 
                         if monster["hp"] <= 0:
