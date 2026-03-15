@@ -2,23 +2,29 @@ import pygame
 import sys
 import random
 import math
+import os
+import subprocess
 
 pygame.init()
 pygame.mixer.init()
+
+# =========================
+# Paths
+# =========================
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+ASSET_DIR = os.path.join(BASE_DIR, "..", "Assets")
+
 # =========================
 # Helper Functions
 # =========================
 def load_scaled_image(file_name, scale_factor):
-    original = pygame.image.load("../Assets/" + file_name).convert_alpha()
+    path = os.path.join(ASSET_DIR, file_name)
+    original = pygame.image.load(path).convert_alpha()
     width = int(original.get_width() * scale_factor)
     height = int(original.get_height() * scale_factor)
     return pygame.transform.smoothscale(original, (width, height))
 
 def build_wall_mask_from_maze(maze_surface):
-    """
-    Detect the light gray floor as walkable area,
-    then invert it so walls become solid.
-    """
     walkable_mask = pygame.mask.from_threshold(
         maze_surface,
         (230, 230, 230, 255),
@@ -47,9 +53,6 @@ def distance(x1, y1, x2, y2):
     return math.hypot(x2 - x1, y2 - y1)
 
 def move_toward_target(monster_x, monster_y, target_x, target_y, speed):
-    """
-    Return dx, dy that moves the monster toward the target.
-    """
     dx = target_x - monster_x
     dy = target_y - monster_y
     dist = math.hypot(dx, dy)
@@ -59,21 +62,70 @@ def move_toward_target(monster_x, monster_y, target_x, target_y, speed):
 
     move_x = (dx / dist) * speed
     move_y = (dy / dist) * speed
-
     return move_x, move_y
 
+def get_bullet_velocity(direction, speed):
+    if direction == "UP":
+        return 0, -speed
+    if direction == "DOWN":
+        return 0, speed
+    if direction == "LEFT":
+        return -speed, 0
+    return speed, 0
+
+def draw_health_bar(surface, x, y, width, height, current_hp, max_hp, border_color, fill_color, bg_color):
+    pygame.draw.rect(surface, bg_color, (x, y, width, height))
+    ratio = max(current_hp, 0) / max_hp
+    pygame.draw.rect(surface, fill_color, (x, y, int(width * ratio), height))
+    pygame.draw.rect(surface, border_color, (x, y, width, height), 2)
+
+def create_monsters():
+    return [
+        {"x": 150.0, "y": 404.0, "dx": 2.0, "dy": 0.0, "speed": 2.0, "patrol_timer": 0, "hp": 5, "alive": True},
+        {"x": 337.0, "y": 64.0, "dx": -2.0, "dy": 0.0, "speed": 2.0, "patrol_timer": 0, "hp": 5, "alive": True},
+        {"x": 621.0, "y": 564.0, "dx": 0.0, "dy": -2.0, "speed": 2.0, "patrol_timer": 0, "hp": 5, "alive": True},
+        {"x": 849.0, "y": 72.0, "dx": 0.0, "dy": -2.0, "speed": 2.0, "patrol_timer": 0, "hp": 5, "alive": True}
+    ]
+
+def create_ammos():
+    return [
+        {"x": 176, "y": 137, "collected": False},
+        {"x": 704, "y": 69, "collected": False},
+        {"x": 0, "y": 471, "collected": False}
+    ]
+
+def reset_game(player2_stand_img):
+    return {
+        "player_x": 869.0,
+        "player_y": 592.0,
+        "player_direction": "RIGHT",
+        "current_player_image": player2_stand_img,
+        "player_hp": 3,
+        "blocks": 1,
+        "ammo_count": 10,
+        "game_won": False,
+        "game_lost": False,
+        "fail_sound_played": False,
+        "show_mission": True,
+        "mission_start_time": pygame.time.get_ticks(),
+        "last_player_hit_time": 0,
+        "last_shot_time": 0,
+        "bullets": [],
+        "monsters": create_monsters(),
+        "ammos": create_ammos()
+    }
 
 # =========================
 # Load Maze
 # =========================
 maze_raw = pygame.image.load("../Assets/maze_level2.png")
 
-scale_factor = 0.7
+scale_factor = 0.60  # smaller window
 maze_width = int(maze_raw.get_width() * scale_factor)
 maze_height = int(maze_raw.get_height() * scale_factor)
 
 screen = pygame.display.set_mode((maze_width, maze_height))
-pygame.display.set_caption("Snowfall Siege - Level 2")
+pygame.display.set_caption("Snowfall Siege - Level 2 Enhanced")
 
 maze_raw = maze_raw.convert_alpha()
 maze = pygame.transform.smoothscale(maze_raw, (maze_width, maze_height))
@@ -81,125 +133,229 @@ maze = pygame.transform.smoothscale(maze_raw, (maze_width, maze_height))
 # =========================
 # Load Assets
 # =========================
-player_run = load_scaled_image("player_run.png", 0.09)
-player_stand = load_scaled_image("player_stand.png", 0.05)
+player_run = load_scaled_image("player2_run.png", 0.08)
+player_stand = load_scaled_image("player2_stand.png", 0.08)
 monster_img = load_scaled_image("monster_run.png", 0.11)
 ammo_img = load_scaled_image("ammo.png", 0.14)
 
-pickup_sound = pygame.mixer.Sound("../Assets/pickup.mp3")
-win_sound = pygame.mixer.Sound("../Assets/win.mp3")
+pickup_sound = pygame.mixer.Sound(os.path.join(ASSET_DIR, "pickup.mp3"))
+win_sound = pygame.mixer.Sound(os.path.join(ASSET_DIR, "win.mp3"))
+fail_sound = pygame.mixer.Sound(os.path.join(ASSET_DIR, "fail_sfx.mp3"))
+gun_shot_sound = pygame.mixer.Sound(os.path.join(ASSET_DIR, "gun_shot.mp3"))
+monster_hurt_sound = pygame.mixer.Sound(os.path.join(ASSET_DIR, "monster_hurt.mp3"))
+player_hurt_sound = pygame.mixer.Sound(os.path.join(ASSET_DIR, "player_hurt.mp3"))
+shield_break_sound = pygame.mixer.Sound(os.path.join(ASSET_DIR, "shield_break.mp3"))
 
-pygame.mixer.music.load("../Assets/bgm.mp3")
+pygame.mixer.music.load(os.path.join(ASSET_DIR, "bgm.mp3"))
 pygame.mixer.music.play(-1)
 pygame.mixer.music.set_volume(0.3)
-# Exit block (temporary)
+
 exit_img = pygame.Surface((35, 35), pygame.SRCALPHA)
 exit_img.fill((0, 220, 0))
+
+# Snow overlay setup
+WIDTH, HEIGHT = screen.get_width(), screen.get_height()
+snow_colors = [
+    (240, 248, 255),  # baby blue-ish
+    (0, 0, 0),        # black
+    (255, 255, 255),  # white
+]
+flakes = [
+    {
+        "x": random.randrange(0, WIDTH),
+        "y": random.randrange(-HEIGHT, 0),
+        "speed": random.uniform(1.0, 3.5),
+        "radius": random.randint(1, 3),
+        "color": random.choice(snow_colors),
+    }
+    for _ in range(120)
+]
+bullet_img = pygame.Surface((10, 10), pygame.SRCALPHA)
+pygame.draw.circle(bullet_img, (0, 180, 255), (5, 5), 5)
 
 # =========================
 # Fonts / Clock
 # =========================
 font = pygame.font.SysFont("arial", 24)
-big_font = pygame.font.SysFont("arial", 46, bold=True)
+big_font = pygame.font.SysFont("arial", 48, bold=True)
+mid_font = pygame.font.SysFont("arial", 30, bold=True)
+small_font = pygame.font.SysFont("arial", 20)
 clock = pygame.time.Clock()
 
 # =========================
-# Collision Mask
+# Collision Masks
 # =========================
 walls_mask = build_wall_mask_from_maze(maze)
+exit_mask = pygame.mask.from_surface(exit_img)
+bullet_mask = pygame.mask.from_surface(bullet_img)
+monster_mask = pygame.mask.from_surface(monster_img)
 
 # =========================
-# Game Variables
+# Game Constants
 # =========================
 player_speed = 4
-ammo_count = 0
-game_won = False
+player_max_hp = 3
+damage_cooldown = 1000
+mission_duration = 4000
+exit_x, exit_y = 20, 20
+bullet_speed = 10
+shoot_cooldown = 250
+chase_range = 170
+patrol_change_time = 90
+
+# =========================
+# Initial Game State
+# =========================
+game = reset_game(player_stand)
+
 running = True
+game_state = "playing"
+win_played = False
 
-player_x, player_y = 1000, 700
-
-exit_x, exit_y = 20 , -30
-
-monsters = [
-    {"x": 350.0, "y": 90.0, "dx": 2.0, "dy": 0.0, "speed": 2.0, "patrol_timer": 0},
-    {"x": 980.0, "y": 35.0, "dx": -2.0, "dy": 0.0, "speed": 2.0, "patrol_timer": 0},
-    {"x": 180.0, "y": 500.0, "dx": 0.0, "dy": -2.0, "speed": 2.0, "patrol_timer": 0},
-    {"x": 1000.0, "y": 520.0, "dx": 0.0, "dy": -2.0, "speed": 2.0, "patrol_timer": 0}
-]
-
-ammos = [
-    {"x": 205, "y": 160, "collected": False},
-    {"x": 820, "y": 80, "collected": False},
-    {"x": 0, "y": 550, "collected": False}
-]
+exit_x, exit_y = 17 , -26
 
 # AI settings
 CHASE_RANGE = 170
 PATROL_CHANGE_TIME = 90
 
+def go_to_menu():
+    pygame.mixer.music.fadeout(300)
+    subprocess.Popen([sys.executable, "menu.py"], cwd=os.path.dirname(__file__))
+    pygame.quit()
+    sys.exit()
+
 # =========================
 # Main Loop
 # =========================
 while running:
+    clock.tick(60)
+
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
+        elif event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+            if game_state == "playing":
+                game_state = "pause"
+            elif game_state == "pause":
+                game_state = "playing"
+        elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1 and game_state != "playing":
+            mx, my = event.pos
+            buttons = []
+            if game_state == "pause":
+                buttons = [("Continue", "continue"), ("Restart", "restart"), ("Exit to Menu", "menu")]
+            elif game_state == "win":
+                buttons = [("Restart", "restart"), ("Exit to Menu", "menu")]
+            elif game_state == "lose":
+                buttons = [("Restart", "restart"), ("Exit to Menu", "menu")]
+            start_y = maze_height // 2 + 30
+            rects = []
+            for i, (label, action) in enumerate(buttons):
+                rect = pygame.Rect(0, 0, 220, 50)
+                rect.center = (maze_width // 2, start_y + i * 70)
+                rects.append((rect, action))
+            for rect, action in rects:
+                if rect.collidepoint(mx, my):
+                    if action == "continue":
+                        game_state = "playing"
+                    elif action == "restart":
+                        game = reset_game(player_stand)
+                        game_state = "playing"
+                        win_played = False
+                    elif action == "menu":
+                        go_to_menu()
+                    break
 
-    current_player_image = player_stand
+        if event.type == pygame.KEYDOWN and game_state == "playing":
+            if (not game["game_won"]) and (not game["game_lost"]) and event.key == pygame.K_SPACE:
+                current_time = pygame.time.get_ticks()
+                if game["ammo_count"] > 0 and current_time - game["last_shot_time"] >= shoot_cooldown:
+                    bullet_dx, bullet_dy = get_bullet_velocity(game["player_direction"], bullet_speed)
 
-    # =========================
-    # Player Movement
-    # =========================
-    if not game_won:
+                    bullet_x = int(game["player_x"] + game["current_player_image"].get_width() // 2)
+                    bullet_y = int(game["player_y"] + game["current_player_image"].get_height() // 2)
+
+                    game["bullets"].append({
+                        "x": bullet_x,
+                        "y": bullet_y,
+                        "dx": bullet_dx,
+                        "dy": bullet_dy
+                    })
+
+                    game["ammo_count"] -= 1
+                    game["last_shot_time"] = current_time
+                    gun_shot_sound.play()
+
+    if game_state == "playing" and not game["game_won"] and not game["game_lost"]:
         keys = pygame.key.get_pressed()
-        new_x, new_y = player_x, player_y
+        new_x, new_y = game["player_x"], game["player_y"]
+        game["current_player_image"] = player_stand
 
-        if keys[pygame.K_UP]:
-            current_player_image = player_run
-            new_y -= player_speed
-        elif keys[pygame.K_DOWN]:
-            current_player_image = pygame.transform.flip(player_run, True, False)
-            new_y += player_speed
-        elif keys[pygame.K_LEFT]:
-            current_player_image = pygame.transform.flip(player_run, True, False)
-            new_x -= player_speed
-        elif keys[pygame.K_RIGHT]:
-            current_player_image = player_run
-            new_x += player_speed
+        dx, dy = 0, 0
+        if keys[pygame.K_UP] or keys[pygame.K_w]:
+            game["current_player_image"] = player_run
+            game["player_direction"] = "UP"
+            dy = -player_speed
+        elif keys[pygame.K_DOWN] or keys[pygame.K_s]:
+            game["current_player_image"] = pygame.transform.flip(player_run, True, False)
+            game["player_direction"] = "DOWN"
+            dy = player_speed
+        elif keys[pygame.K_LEFT] or keys[pygame.K_a]:
+            game["current_player_image"] = pygame.transform.flip(player_run, True, False)
+            game["player_direction"] = "LEFT"
+            dx = -player_speed
+        elif keys[pygame.K_RIGHT] or keys[pygame.K_d]:
+            game["current_player_image"] = player_run
+            game["player_direction"] = "RIGHT"
+            dx = player_speed
 
-        player_mask = pygame.mask.from_surface(current_player_image)
+        player_mask = pygame.mask.from_surface(game["current_player_image"])
         ammo_mask = pygame.mask.from_surface(ammo_img)
-        exit_mask = pygame.mask.from_surface(exit_img)
 
-        if not is_collision((int(new_x), int(new_y)), player_mask, walls_mask):
-            player_x, player_y = new_x, new_y
+        attempts = []
+        if dx == 0 and dy == 0:
+            attempts = [(0, 0)]
+        else:
+            attempts.append((dx, dy))
+            if dy != 0:
+                attempts.append((-player_speed, 0))
+                attempts.append((player_speed, 0))
+            if dx != 0:
+                attempts.append((0, -player_speed))
+                attempts.append((0, player_speed))
 
-        for ammo in ammos:
+        for attempt_dx, attempt_dy in attempts:
+            cand_x = game["player_x"] + attempt_dx
+            cand_y = game["player_y"] + attempt_dy
+            if not is_collision((int(cand_x), int(cand_y)), player_mask, walls_mask):
+                game["player_x"], game["player_y"] = cand_x, cand_y
+                break
+
+        for ammo in game["ammos"]:
             if not ammo["collected"]:
-                offset = (int(ammo["x"] - player_x), int(ammo["y"] - player_y))
+                offset = (int(ammo["x"] - game["player_x"]), int(ammo["y"] - game["player_y"]))
                 if player_mask.overlap(ammo_mask, offset):
                     ammo["collected"] = True
-                    ammo_count += 5
+                    game["ammo_count"] += 7
                     pickup_sound.play()
 
-        exit_offset = (int(exit_x - player_x), int(exit_y - player_y))
-        if player_mask.overlap(exit_mask, exit_offset):
-            game_won = True
-            win_sound.play()
+        exit_offset = (int(exit_x - game["player_x"]), int(exit_y - game["player_y"]))
+        all_monsters_dead = all(not monster["alive"] for monster in game["monsters"])
+        if all_monsters_dead and player_mask.overlap(exit_mask, exit_offset):
+            game["game_won"] = True
+            if not win_played:
+                win_sound.play()
+                win_played = True
 
-        # =========================
-        # Monster AI
-        # =========================
-        monster_mask = pygame.mask.from_surface(monster_img)
+        for monster in game["monsters"]:
+            if not monster["alive"]:
+                continue
 
-        for monster in monsters:
-            dist_to_player = distance(monster["x"], monster["y"], player_x, player_y)
+            dist_to_player = distance(monster["x"], monster["y"], game["player_x"], game["player_y"])
 
-            # -------- Chase Mode --------
-            if dist_to_player <= CHASE_RANGE:
+            if dist_to_player <= chase_range:
                 move_x, move_y = move_toward_target(
                     monster["x"], monster["y"],
-                    player_x, player_y,
+                    game["player_x"], game["player_y"],
                     monster["speed"] + 0.6
                 )
 
@@ -217,12 +373,10 @@ while running:
                     test_y_only = monster["y"] + move_y
                     if not is_collision((int(monster["x"]), int(test_y_only)), monster_mask, walls_mask):
                         monster["y"] = test_y_only
-
-            # -------- Patrol Mode --------
             else:
                 monster["patrol_timer"] += 1
 
-                if monster["patrol_timer"] >= PATROL_CHANGE_TIME:
+                if monster["patrol_timer"] >= patrol_change_time:
                     monster["dx"], monster["dy"] = new_monster_direction(monster["speed"])
                     monster["patrol_timer"] = 0
 
@@ -236,45 +390,185 @@ while running:
                     monster["dx"], monster["dy"] = new_monster_direction(monster["speed"])
                     monster["patrol_timer"] = 0
 
+        current_time = pygame.time.get_ticks()
+
+        for monster in game["monsters"]:
+            if not monster["alive"]:
+                continue
+
+            offset = (int(monster["x"] - game["player_x"]), int(monster["y"] - game["player_y"]))
+            if player_mask.overlap(monster_mask, offset):
+                if current_time - game["last_player_hit_time"] >= damage_cooldown:
+                    if game["blocks"] > 0:
+                        game["blocks"] -= 1
+                        shield_break_sound.play()
+                    else:
+                        game["player_hp"] -= 1
+                        player_hurt_sound.play()
+                    game["last_player_hit_time"] = current_time
+
+                    if game["player_hp"] <= 0:
+                        game["player_hp"] = 0
+                        game["game_lost"] = True
+                        if not game["fail_sound_played"]:
+                            fail_sound.play()
+                            game["fail_sound_played"] = True
+
+        bullets_to_remove = []
+
+        if game_state == "playing":
+            for bullet in game["bullets"]:
+                bullet["x"] += bullet["dx"]
+                bullet["y"] += bullet["dy"]
+
+                if bullet["x"] < 0 or bullet["x"] > maze_width or bullet["y"] < 0 or bullet["y"] > maze_height:
+                    bullets_to_remove.append(bullet)
+                    continue
+
+                if is_collision((int(bullet["x"]), int(bullet["y"])), bullet_mask, walls_mask):
+                    bullets_to_remove.append(bullet)
+                    continue
+
+                for monster in game["monsters"]:
+                    if not monster["alive"]:
+                        continue
+
+                    bullet_to_monster_offset = (
+                        int(monster["x"] - bullet["x"]),
+                        int(monster["y"] - bullet["y"])
+                    )
+
+                    if bullet_mask.overlap(monster_mask, bullet_to_monster_offset):
+                        monster["hp"] -= 1
+                        monster_hurt_sound.play()
+                        bullets_to_remove.append(bullet)
+
+                        if monster["hp"] <= 0:
+                            monster["hp"] = 0
+                            monster["alive"] = False
+                            gained = 1
+                            game["blocks"] = min(1, game["blocks"] + gained)
+                        break
+
+        for bullet in bullets_to_remove:
+            if bullet in game["bullets"]:
+                game["bullets"].remove(bullet)
+
+    if game_state == "playing" and game["show_mission"]:
+        if pygame.time.get_ticks() - game["mission_start_time"] > mission_duration:
+            game["show_mission"] = False
+
     # =========================
     # Draw
     # =========================
     screen.fill((255, 255, 255))
     screen.blit(maze, (0, 0))
 
+    # Snow overlay
+    for flake in flakes:
+        flake["y"] += flake["speed"]
+        flake["x"] += random.uniform(-0.5, 0.5)
+        if flake["y"] > HEIGHT:
+            flake["y"] = -flake["radius"]
+            flake["x"] = random.randrange(0, WIDTH)
+            flake["color"] = random.choice(snow_colors)
+        pygame.draw.circle(screen, flake["color"], (int(flake["x"]), int(flake["y"])), flake["radius"])
+
     # Exit
     screen.blit(exit_img, (exit_x, exit_y))
     draw_text(screen, "EXIT", font, (0, 140, 0), exit_x, exit_y + 38)
 
-    # Monsters
-    for monster in monsters:
-        screen.blit(monster_img, (int(monster["x"]), int(monster["y"])))
-
-    # Ammo
-    for ammo in ammos:
+    for ammo in game["ammos"]:
         if not ammo["collected"]:
             screen.blit(ammo_img, (ammo["x"], ammo["y"]))
 
-    # Player
-    if not game_won:
-        screen.blit(current_player_image, (int(player_x), int(player_y)))
+    for monster in game["monsters"]:
+        if monster["alive"]:
+            screen.blit(monster_img, (int(monster["x"]), int(monster["y"])))
+            draw_health_bar(
+                screen,
+                int(monster["x"]),
+                int(monster["y"]) - 10,
+                45,
+                6,
+                monster["hp"],
+                5,
+                (0, 0, 0),
+                (220, 0, 0),
+                (180, 180, 180)
+            )
 
-    # UI
-    draw_text(screen, f"Ammo: {ammo_count}", font, (0, 0, 0), 20, maze_height - 35)
+    for bullet in game["bullets"]:
+        screen.blit(bullet_img, (int(bullet["x"]), int(bullet["y"])))
 
-    # Win message
-    if game_won:
-        draw_text(
-            screen,
-            "YOU ESCAPED!",
-            big_font,
-            (0, 100, 255),
-            maze_width // 2 - 170,
-            maze_height // 2 - 20
-        )
+    if not game["game_lost"]:
+        screen.blit(game["current_player_image"], (int(game["player_x"]), int(game["player_y"])))
+
+    draw_text(screen, f"Ammo: {game['ammo_count']}", font, (0, 0, 0), 20, maze_height - 80)
+    draw_text(screen, f"Monsters Left: {sum(1 for monster in game['monsters'] if monster['alive'])}", font, (0, 0, 0), 20, maze_height - 50)
+    draw_text(screen, "Player HP", small_font, (0, 0, 0), 20, maze_height - 115)
+    draw_text(screen, f"Blocks: {game['blocks']}/1", small_font, (0, 0, 0), 20, maze_height - 135)
+    # Player coordinates (upper right, black)
+    coord_text = f"X: {int(game['player_x'])}  Y: {int(game['player_y'])}"
+    coord_surf = small_font.render(coord_text, True, (0, 0, 0))
+    coord_rect = coord_surf.get_rect(topright=(maze_width - 10, 5))
+    screen.blit(coord_surf, coord_rect)
+
+    draw_health_bar(
+        screen,
+        20,
+        maze_height - 95,
+        120,
+        18,
+        game["player_hp"],
+        player_max_hp,
+        (0, 0, 0),
+        (0, 200, 0),
+        (180, 180, 180)
+    )
+
+    if game["show_mission"]:
+        mission_bg = pygame.Surface((maze_width - 120, 100), pygame.SRCALPHA)
+        mission_bg.fill((0, 0, 0, 170))
+        screen.blit(mission_bg, (60, 40))
+        draw_text(screen, "MISSION:", mid_font, (255, 255, 0), 90, 55)
+        draw_text(screen, "Defeat all monsters before leaving the maze!", font, (255, 255, 255), 90, 95)
+
+    if game["game_won"]:
+        game_state = "win"
+
+    if game["game_lost"]:
+        game_state = "lose"
+
+    if game_state != "playing":
+        overlay = pygame.Surface((maze_width, maze_height), pygame.SRCALPHA)
+        overlay.fill((0, 0, 0, 150))
+        screen.blit(overlay, (0, 0))
+
+        title = "VICTORY" if game_state == "win" else ("DEFEATED" if game_state == "lose" else "PAUSED")
+        title_color = (0, 255, 120) if game_state == "win" else ((255, 60, 60) if game_state == "lose" else (255, 255, 255))
+        title_rect = big_font.render(title, True, title_color).get_rect(center=(maze_width // 2, maze_height // 2 - 60))
+        screen.blit(big_font.render(title, True, title_color), title_rect)
+
+        buttons = []
+        if game_state == "pause":
+            buttons = [("Continue", "continue"), ("Restart", "restart"), ("Exit to Menu", "menu")]
+        elif game_state == "win":
+            buttons = [("Restart", "restart"), ("Exit to Menu", "menu")]
+        elif game_state == "lose":
+            buttons = [("Restart", "restart"), ("Exit to Menu", "menu")]
+
+        start_y = maze_height // 2 + 30
+        for i, (label, _) in enumerate(buttons):
+            rect = pygame.Rect(0, 0, 220, 50)
+            rect.center = (maze_width // 2, start_y + i * 70)
+            pygame.draw.rect(screen, (0, 0, 0, 180), rect, border_radius=12)
+            pygame.draw.rect(screen, (255, 255, 255), rect, 2, border_radius=12)
+            text = font.render(label, True, (255, 255, 255))
+            text_rect = text.get_rect(center=rect.center)
+            screen.blit(text, text_rect)
 
     pygame.display.flip()
-    clock.tick(60)
 
 pygame.quit()
 sys.exit()
