@@ -163,7 +163,8 @@ flakes = [
     }
     for _ in range(120)
 ]
-
+bullet_img = pygame.Surface((10, 10), pygame.SRCALPHA)
+pygame.draw.circle(bullet_img, (0, 180, 255), (5, 5), 5)
 
 # =========================
 # Fonts / Clock
